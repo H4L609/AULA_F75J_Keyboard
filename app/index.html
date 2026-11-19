@@ -1,0 +1,1443 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F75J キー配置エディタ</title>
+<style>
+:root {
+  --bg: #f4f5f7; --panel: #ffffff; --text: #1d2129; --muted: #6b7280; --line: #d9dde3;
+  --key: #ffffff; --key-edge: #c9ced6; --key-changed: #fff4d6; --key-changed-edge: #e0b44a;
+  --accent: #2f6fde; --accent-text: #ffffff; --danger: #c2410c; --ok: #15803d;
+  --key-sel: #dbe8ff; --code: #f0f2f5;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171b; --panel: #1e2127; --text: #e6e8eb; --muted: #9aa1ab; --line: #343942;
+    --key: #2a2e36; --key-edge: #424854; --key-changed: #3b3420; --key-changed-edge: #b8902f;
+    --accent: #5b8ff0; --accent-text: #0d1117; --danger: #f08a5d; --ok: #4ade80;
+    --key-sel: #23324d; --code: #16181d;
+  }
+}
+* { box-sizing: border-box; }
+/* スクロールバーの場所をいつも空けておく（画面によって右下のボタンなどの位置がずれないように） */
+html { scrollbar-gutter: stable; }
+/* 日本語のフォントでは「\」が「¥」の形になるので、この 1 文字だけ Segoe UI で出す */
+@font-face { font-family: "Backslash"; src: local("Segoe UI"); unicode-range: U+005C; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font-family: "Backslash", "Yu Gothic UI", "Meiryo", system-ui, sans-serif; font-size: 14px; }
+header { display: flex; align-items: center; gap: 16px; padding: 12px 20px;
+  background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+/* 右下に浮かぶ反映ボタン。ページの最後が隠れないよう、下に余白をとる */
+body { padding-bottom: 110px; }
+#dock { position: fixed; right: 20px; bottom: 20px; z-index: 40; display: flex; flex-direction: column;
+  align-items: flex-end; gap: 8px; max-width: min(420px, calc(100vw - 40px)); pointer-events: none; }
+#dock > * { pointer-events: auto; }
+.dock-main { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 6px 6px 6px 12px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+.dock-main .chip { border: none; padding: 0; }
+#btn-flash { border-radius: 99px; padding: 10px 20px; font-weight: 600; }
+/* 同期の表示がないときは、枠を消してボタンだけにする */
+/* 状態の前に色つきの丸をつける（反映済み=緑、未反映=橙、記録なし=灰） */
+.dock-main .chip::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+  background: currentColor; margin-right: 6px; vertical-align: 1px; }
+header h1 { font-size: 17px; margin: 0; }
+.chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+.chip.on { color: var(--ok); border-color: var(--ok); }
+.chip.warn { color: var(--key-changed-edge); border-color: var(--key-changed-edge); }
+.io-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px;
+  padding-top: 10px; border-top: 1px solid var(--line); }
+.io-row .label { color: var(--muted); font-size: 13px; }
+main { padding: 16px 20px; display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) 340px; }
+@media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+.tabs { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.profiles { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 12px;
+  padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.pcheck { margin: -4px 0 12px; font-size: 13px; }
+.pcheck summary { cursor: pointer; }
+.pcheck.ok summary { color: var(--ok); }
+.pcheck.warn summary { color: var(--key-changed-edge); }
+.pcheck.bad summary { color: var(--danger); font-weight: 600; }
+.pcheck ul { margin: 6px 0 0; padding-left: 20px; }
+.pcheck li { margin: 2px 0; }
+.pcheck .muted { color: var(--muted); }
+.profiles .label { color: var(--muted); font-size: 13px; margin-right: 4px; }
+.profiles .tab { padding: 5px 12px; }
+.profiles .btn { padding: 5px 10px; font-size: 13px; }
+.knob { display: flex; align-items: center; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.knob .knob-title { color: var(--muted); font-size: 13px; margin-right: 4px; }
+.knob .key { position: static; width: 110px; height: 50px; }
+.macro-card, .light-card { margin: 16px 20px; }
+/* 画面の切り替え（キー配置 / マクロ / ライト） */
+.nav { display: flex; gap: 4px; align-self: stretch; margin: -12px 0; }
+.nav button { border: none; background: none; color: var(--muted); font: inherit; font-size: 14px;
+  padding: 0 14px; cursor: pointer; border-bottom: 3px solid transparent; }
+.nav button:hover { color: var(--text); }
+.nav button.active { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+.page[hidden] { display: none; }
+.tt-row { margin-top: 10px; font-size: 13px; }
+.tt-row input[type=range] { width: 260px; vertical-align: middle; }
+.light-grid { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 10px 14px; align-items: center; max-width: 720px; }
+.light-grid label { color: var(--muted); font-size: 13px; }
+.light-grid input[type=range] { width: 260px; vertical-align: middle; }
+.light-grid .val { display: inline-block; min-width: 3em; margin-left: 8px; font-size: 13px; }
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; }
+.swatch { width: 34px; height: 26px; border-radius: 6px; border: 2px solid var(--line); cursor: pointer; padding: 0; }
+.swatch.on { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+.light-off { opacity: .45; pointer-events: none; }
+.macro-wrap { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 16px; }
+@media (max-width: 800px) { .macro-wrap { grid-template-columns: 1fr; } }
+.macro-list { display: flex; flex-direction: column; gap: 6px; }
+.macro-list .tab { text-align: left; }
+.macro-edit .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.steps { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.step { display: grid; grid-template-columns: 28px 150px minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.step .num { color: var(--muted); font-size: 12px; text-align: right; }
+.step input { width: 100%; }
+.step .btns { display: flex; gap: 4px; }
+.step .btns .btn { padding: 4px 8px; }
+.btn.rec { border-color: var(--danger); color: var(--danger); }
+.btn.rec.on { background: var(--danger); color: var(--accent-text); }
+.suggest { position: fixed; z-index: 50; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.25); max-height: 300px; overflow-y: auto; min-width: 260px; }
+.suggest div { display: flex; justify-content: space-between; gap: 12px; padding: 5px 10px; cursor: pointer; font-size: 13px; }
+.suggest div b { font-family: Consolas, monospace; font-weight: 600; }
+.suggest div span { color: var(--muted); font-size: 12px; }
+.suggest div.on, .suggest div:hover { background: var(--key-sel); }
+.toolbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.undo { display: flex; gap: 6px; margin-bottom: 12px; }
+.undo .btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; }
+.undo .ico { display: inline-block; font-size: 14px; }
+.tab { border: 1px solid var(--line); background: transparent; color: var(--text);
+  padding: 6px 14px; border-radius: 8px; cursor: pointer; font: inherit; }
+.tab.active { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.kb-wrap { overflow-x: auto; }
+#kb { position: relative; }
+.key { position: absolute; border: 1px solid var(--key-edge); background: var(--key);
+  border-radius: 6px; cursor: pointer; padding: 3px 4px; overflow: hidden;
+  display: flex; flex-direction: column; justify-content: space-between; user-select: none; }
+.key:hover { border-color: var(--accent); }
+.key.changed { background: var(--key-changed); border-color: var(--key-changed-edge); }
+.key.sel { outline: 3px solid var(--accent); outline-offset: 1px; background: var(--key-sel); }
+.key .phys { font-size: 10px; color: var(--muted); line-height: 1.1; }
+.key .val { font-size: 12px; font-weight: 600; line-height: 1.15; text-align: center; word-break: break-all; }
+.ico { font-family: "Segoe Fluent Icons", "Segoe MDL2 Assets"; font-weight: 400; line-height: 1; display: block; }
+.choice .ico { margin: 0 auto 3px; }
+.key .val.trans { color: var(--muted); font-weight: 400; }
+.key.off { opacity: .3; cursor: not-allowed; }
+.key.off:hover { border-color: var(--key-edge); }
+.key.bad { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.key.bad .val, .key.bad .tapv { color: var(--danger); }
+.key.sel.bad { outline-color: var(--danger); }
+.sel-info .bad { color: var(--danger); }
+.key .tapv { font-size: 10px; color: var(--accent); text-align: center; line-height: 1.1; }
+.legend { margin-top: 10px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px;
+  background: var(--key-changed); border: 1px solid var(--key-changed-edge); margin-right: 4px; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.sel-info { font-size: 13px; margin-bottom: 10px; color: var(--muted); min-height: 2.6em; }
+.sel-info b { color: var(--text); }
+/* 割り当て: 上に検索欄、その下に種類の一覧 */
+.pick-bar { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.pick-bar input { font: inherit; width: 100%; padding: 7px 10px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); color: var(--text); }
+.pick-bar input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.find-wrap { position: relative; }
+.find-wrap .ico { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; }
+.find-wrap input { padding-left: 32px; }
+/* B の形: 上の段 = まとまり、下の段 = その中の種類 */
+.cat-b { display: flex; flex-direction: column; gap: 6px; }
+.seg[hidden] { display: none; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { flex: 1; font: inherit; font-size: 13px; padding: 6px 4px; border: none; background: transparent;
+  color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.active { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chips .tab { padding: 3px 9px; font-size: 12px; }
+.search-head { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.choices { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px;
+  max-height: 340px; overflow-y: auto; padding: 2px; }
+.choice { border: 1px solid var(--line); background: var(--key); color: var(--text); border-radius: 6px;
+  padding: 6px 4px; font: inherit; font-size: 12px; cursor: pointer; text-align: center; }
+.choice:hover { border-color: var(--accent); }
+.choice small { display: block; color: var(--muted); font-size: 10px; }
+.combo { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+.combo label { font-size: 13px; }
+select, input[type=text] { font: inherit; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--line);
+  background: var(--key); color: var(--text); }
+.row-btns { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.btn { font: inherit; padding: 7px 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--key); color: var(--text); cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.btn.warn { border-color: var(--danger); color: var(--danger); }
+.btn:disabled { opacity: .5; cursor: default; }
+footer { padding: 0 20px 20px; }
+footer:has(#log[style*="display: none"]), footer:has(#log:empty) { display: none; }
+/* 右上のメニュー（めったに使わない操作をまとめる） */
+.menu-wrap { position: relative; }
+.menu-btn { display: flex; align-items: center; gap: 6px; }
+.menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 50; min-width: 240px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.25); display: flex; flex-direction: column; }
+.menu[hidden] { display: none; }
+.menu button { font: inherit; text-align: left; background: none; border: none; color: var(--text);
+  padding: 8px 12px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+.menu button .ico { width: 16px; color: var(--muted); }
+.menu button:hover:not(:disabled) { background: var(--bg); }
+.menu button:disabled { opacity: .5; cursor: default; }
+.menu button.danger, .menu button.danger .ico { color: var(--danger); }
+.menu hr { border: none; border-top: 1px solid var(--line); margin: 6px 4px; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.steps { color: var(--muted); font-size: 13px; }
+#status { font-size: 13px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
+#status:empty { display: none; }
+#status.err { color: var(--danger); }
+#status.ok { color: var(--ok); }
+pre#log { background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  font-size: 12px; max-height: 260px; overflow: auto; white-space: pre-wrap; display: none; margin-top: 10px; }
+.note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>AULA F75J キー配置エディタ</h1>
+  <nav class="nav" id="nav">
+    <button data-page="keys" class="active">キー配置</button>
+    <button data-page="macros">マクロ</button>
+    <button data-page="light">ライト</button>
+  </nav>
+  <span id="dev" class="chip">キーボード: 確認中…</span>
+  <span id="dirty" class="chip" style="display:none">保存していない変更があります</span>
+  <span style="flex:1"></span>
+  <div class="menu-wrap">
+    <button class="btn menu-btn" id="btn-menu" aria-haspopup="true" aria-expanded="false"><span class="ico">&#xE712;</span>メニュー</button>
+    <div class="menu" id="menu" hidden>
+      <button id="btn-save" title="キーボードには反映せずに、この PC にだけ保存します"><span class="ico">&#xE74E;</span>保存だけする</button>
+      <hr>
+      <button id="btn-read" title="キーボードに保存してある設定を、エディタに読み込みます（キーボードが一度つながり直します）"><span class="ico">&#xE896;</span>キーボードから読み込む</button>
+      <button id="btn-export" title="今の設定を、ファイルに保存します"><span class="ico">&#xEDE1;</span>ファイルに書き出す</button>
+      <button id="btn-import" title="ファイルから設定を読み込みます"><span class="ico">&#xE8E5;</span>ファイルから読み込む</button>
+      <hr>
+      <button id="btn-factory" class="danger" title="キー配置・プロファイル・ノブ・マクロを、すべて最初の状態に戻します"><span class="ico">&#xE777;</span>すべて初期値に戻す</button>
+    </div>
+  </div>
+</header>
+
+<!-- 右下に浮かぶ反映ボタン（同期の状態とメッセージもここに出す） -->
+<div id="dock">
+  <div id="status"></div>
+  <div class="dock-main">
+    <span id="sync" class="chip">確認中…</span>
+    <button class="btn primary" id="btn-flash" title="ケーブルでつないだ状態で押してください。反映すると、保存もいっしょにされます">キーボードに反映する</button>
+  </div>
+</div>
+
+<div class="page" id="page-keys">
+<main>
+  <section class="card">
+    <div class="profiles" id="profiles"></div>
+    <div class="pcheck" id="pcheck"></div>
+    <div class="toolbar">
+      <div class="tabs" id="layers"></div>
+      <div class="undo">
+        <button class="btn" id="btn-undo" title="元に戻す（Ctrl+Z）"><span class="ico">&#xE7A7;</span>元に戻す</button>
+        <button class="btn" id="btn-redo" title="やり直す（Ctrl+Y）"><span class="ico">&#xE7A6;</span>やり直す</button>
+      </div>
+    </div>
+    <div class="kb-wrap"><div id="kb"></div></div>
+    <div class="knob" id="knob"></div>
+    <div class="legend" id="legend"></div>
+    <div class="tt-row" id="tt-row"></div>
+  </section>
+
+  <section class="card">
+    <h2>割り当て</h2>
+    <div class="sel-info" id="selinfo">キーボードの絵から、変えたいキーをクリックしてください。</div>
+    <div class="pick-bar">
+      <div class="find-wrap"><span class="ico">&#xE721;</span><input type="search" id="find" autocomplete="off"
+        placeholder="探す（例: 音量、コピー、F13、Ctrl+Alt+DEL）"></div>
+      <div class="cat-b" id="cat-b">
+        <div class="seg" id="cat-groups"></div>
+        <div class="chips" id="cat-chips"></div>
+      </div>
+    </div>
+    <div id="picker"></div>
+    <div class="row-btns">
+      <button class="btn" id="btn-none">機能なし</button>
+      <button class="btn" id="btn-trans">下の層と同じ</button>
+      <button class="btn" id="btn-reset">初期値に戻す</button>
+    </div>
+  </section>
+</main>
+</div>
+
+<div class="page" id="page-light" hidden>
+<section class="card light-card">
+  <h2>ライト</h2>
+  <div id="light"></div>
+</section>
+</div>
+
+<div class="page" id="page-macros" hidden>
+<section class="card macro-card">
+  <h2>マクロ</h2>
+  <div class="note" style="margin-top:0;margin-bottom:10px">キー 1 つで、決まった操作の並びを再生します。キーへの割り当ては、「キー配置」画面の「割り当て」にある「マクロ」から行います（全プロファイル共通、16 個まで）。</div>
+  <div class="macro-wrap">
+    <div class="macro-list" id="macro-list"></div>
+    <div class="macro-edit" id="macro-edit"></div>
+  </div>
+</section>
+</div>
+
+<footer>
+  <pre id="log"></pre>
+</footer>
+
+<script>
+// ---------------------------------------------------------------- 物理配置
+// [刻印, 幅(u), 前の空き(u)]。keymap.json の行の並びと同じ順番。
+const PHYS = [
+  [['Esc',1],['F1',1,.5],['F2',1],['F3',1],['F4',1],['F5',1,.25],['F6',1],['F7',1],['F8',1],['F9',1,.25],['F10',1],['F11',1],['F12',1],['ノブ押し',1,.75]],
+  [['半/全',1],['1',1],['2',1],['3',1],['4',1],['5',1],['6',1],['7',1],['8',1],['9',1],['0',1],['-',1],['^',1],['¥',1],['BS',1],['Del',1]],
+  [['Tab',1.5],['Q',1],['W',1],['E',1],['R',1],['T',1],['Y',1],['U',1],['I',1],['O',1],['P',1],['@',1],['[',1],['PgUp',1,1.5]],
+  [['Caps',1.75],['A',1],['S',1],['D',1],['F',1],['G',1],['H',1],['J',1],['K',1],['L',1],[';',1],[':',1],[']',1],['Enter',1.25],['PgDn',1]],
+  [['Shift',1.25],['Z',1],['X',1],['C',1],['V',1],['B',1],['N',1],['M',1],[',',1],['.',1],['/',1],['\\',1],['Shift',1.75],['↑',1],['End',1]],
+  [['Ctrl',1.25],['Win',1.25],['Alt',1.25],['無変換',1.25],['Space',4.5],['変換',1.25],['かな',1.25],['Fn',1],['←',1],['↓',1],['→',1]],
+];
+
+// ---------------------------------------------------------------- 表示名
+const LABEL = {
+  ESC:'Esc', ENT:'Enter', ENTER:'Enter', BSPC:'BS', TAB:'Tab', SPC:'Space', DEL:'Del', INS:'Ins',
+  HOME:'Home', END:'End', PGUP:'PgUp', PGDN:'PgDn', UP:'↑', DOWN:'↓', LEFT:'←', RGHT:'→',
+  CAPS:'Caps', PSCR:'PrtSc', SCRL:'ScrLk', PAUS:'Pause', APP:'メニュー',
+  LCTL:'左Ctrl', LSFT:'左Shift', LALT:'左Alt', LGUI:'左Win', RCTL:'右Ctrl', RSFT:'右Shift', RALT:'右Alt', RGUI:'右Win',
+  ZENKAKU:'半/全', GRV:'半/全', YEN:'¥', INT3:'¥', RO:'\\', INT1:'\\', KANA:'かな', INT2:'かな',
+  HENKAN:'変換', INT4:'変換', MUHENKAN:'無変換', INT5:'無変換',
+  MINS:'-', EQL:'^', LBRC:'@', RBRC:'[', SCLN:';', QUOT:':', BSLS:']', COMM:',', DOT:'.', SLSH:'/',
+  MUTE:'ミュート', VOLU:'音量+', VOLD:'音量−', MPLY:'再生/停止', MNXT:'次の曲', MPRV:'前の曲', MSTP:'停止',
+  BRIU:'画面 明るく', BRID:'画面 暗く',
+  WHOM:'ブラウザ', MAIL:'メール', CALC:'電卓', MYCM:'マイコン ピュータ', WFAV:'お気に 入り', MSEL:'プレーヤー',
+  WSCH:'Web検索', WBAK:'Web戻る', WFWD:'Web進む', WREF:'Web更新',
+  BRI_UP:'ライト 明るく', BRI_DN:'ライト 暗く', FX_NEXT:'光り方 次', FX_PREV:'光り方 前', CLR_NEXT:'色 次',
+  SPD_UP:'速さ+', SPD_DN:'速さ−', DIR_TOG:'向き 反転',
+  LNK_BT1:'BT 1', LNK_BT2:'BT 2', LNK_BT3:'BT 3', RF_PAIR:'ペアリング', RF_DIAG:'無線 診断',
+  PROF_1:'プロファイル 1', PROF_2:'プロファイル 2', PROF_3:'プロファイル 3', PROF_4:'プロファイル 4', PROF_NEXT:'次の プロファイル',
+  LNG1:'日本語', LNG2:'英数',
+  MS_BTN1:'左クリック', MS_BTN2:'右クリック', MS_BTN3:'中クリック', MS_BTN4:'戻る (マウス)', MS_BTN5:'進む (マウス)',
+  MS_WH_UP:'スクロール ↑', MS_WH_DOWN:'スクロール ↓', MS_WH_LEFT:'スクロール ←', MS_WH_RIGHT:'スクロール →',
+  MS_UP:'カーソル ↑', MS_DOWN:'カーソル ↓', MS_LEFT:'カーソル ←', MS_RIGHT:'カーソル →',
+  DBLCLK_L:'ダブル クリック', DBLCLK_R:'右ダブル クリック', SLEP:'スリープ', CPNL:'コントロール パネル',
+  BOOT_HOLD:'書込待ち (3秒)', MACRO_TG:'自動打鍵', 'MO(1)':'Fn', FN:'Fn', NO:'なし', ___:'',
+};
+const short = n => {
+  if (typeof n !== 'string') return '';
+  let s = n.trim();
+  if (s === '_______' || s === '___') return '___';
+  if (/^KC_/i.test(s)) s = s.slice(3);
+  return /\+|\(/.test(s) ? s : s.toUpperCase();
+};
+const label = n => {
+  const s = short(n);
+  if (s === '___') return '';
+  const mm = s.match(/^MACRO_(\d+)$/);
+  if (mm) { const m = km && km.macros && km.macros[+mm[1] - 1]; return '▶ ' + (m ? m.name : 'マクロ ' + mm[1] + '（未作成）'); }
+  if (/^MO\((\d+)\)$/i.test(s)) return s.toUpperCase() === 'MO(1)' ? 'Fn' : '層' + s.match(/\d+/)[0];
+  const th = s.match(/^(MT|LT)\(\s*([^,]+?)\s*,\s*([^,]+?)\s*\)$/i);
+  if (th) {
+    const tap = label(th[3]);
+    const hold = th[1].toUpperCase() === 'LT' ? (th[2] === '1' ? 'Fn' : '層' + th[2]) : th[2];
+    return tap + ' / 長押し ' + hold;
+  }
+  if (s.includes('+')) return s.split('+').map(p => LABEL[p.toUpperCase()] || p).join('+');
+  return LABEL[s] ?? s;
+};
+
+// ---------------------------------------------------------------- アイコン
+// メディア・アプリ起動などのキーは、文字の代わりにアイコンで見せる。
+// Windows に最初から入っているアイコンフォント（Windows 11: Segoe Fluent Icons、
+// Windows 10: Segoe MDL2 Assets）を使うので、アプリに何も同梱しなくてよい。
+const ICON_GLYPH = {
+  MUTE: 0xE74F, VOLU: 0xE995, VOLD: 0xE993,
+  MPLY: 0xE768, MSTP: 0xE71A, MNXT: 0xE893, MPRV: 0xE892,
+  BRIU: 0xE706, BRID: 0xEC8A,
+  WHOM: 0xE774, MAIL: 0xE715, CALC: 0xE8EF, MYCM: 0xE7F4, WFAV: 0xE734, MSEL: 0xE8D6,
+  WSCH: 0xE721, WBAK: 0xE72B, WFWD: 0xE72A, WREF: 0xE72C,
+  'ALT+F4': 0xE8BB, 'WIN+L': 0xE72E, 'WIN+E': 0xEC50,
+};
+const icon = (n, size = 18) => {
+  const c = ICON_GLYPH[short(n).toUpperCase()];
+  return c ? `<span class="ico" style="font-size:${size}px" aria-hidden="true">${String.fromCodePoint(c)}</span>` : '';
+};
+
+// ---------------------------------------------------------------- 入力の候補
+let ALL_NAMES = [];  // /api/names（[キー名, 数値]）
+const NAME_VALUE = new Map();
+const isBasicName = n => { const v = NAME_VALUE.get(n); return v !== undefined && v >= 0x04 && v <= 0xA4; };
+const MOD_WORDS = ['Ctrl', 'Shift', 'Alt', 'Win', 'RCtrl', 'RShift', 'RAlt', 'RWin'];
+function suggestFor(text) {
+  const t = String(text);
+  const cut = t.lastIndexOf('+');
+  const prefix = cut >= 0 ? t.slice(0, cut + 1) : '';
+  const q = t.slice(cut + 1).trim();
+  const ql = q.toLowerCase();
+  const curated = new Set([...Object.keys(LABEL), ...CATS.flatMap(c => Array.isArray(c[1]) ? c[1].map(x => Array.isArray(x) ? x[0] : x) : [])]);
+  const pool = new Map();
+  const add = (name, lbl) => { if (!pool.has(name)) pool.set(name, lbl); };
+  MOD_WORDS.forEach(m => add(m, '修飾キー（このあとに + を付けて同時押し）'));
+  (km && km.macros || []).forEach((m, i) => add('MACRO_' + (i + 1), '▶ ' + m.name));
+  curated.forEach(n => { if (!n.includes('+') && n !== '___' && !/^MACRO_\d+$/.test(n) && (NAME_VALUE.has(n) || /^(FN|MO\(1\))$/.test(n))) add(n, label(n)); });
+  ALL_NAMES.forEach(([n]) => { if (!/^MACRO_\d+$/.test(n)) add(n, label(n)); });
+  const out = [];
+  for (const [name, lbl] of pool) {
+    // 同時押しの後ろに置けるのは、普通のキーと修飾キーの名前だけ
+    if (prefix && !isBasicName(name) && !MOD_WORDS.includes(name)) continue;
+    const nl = name.toLowerCase(), ll = String(lbl).toLowerCase();
+    let score;
+    if (!q) score = curated.has(name) ? 3 : 9;
+    else if (nl === ql) score = 0;
+    else if (nl.startsWith(ql)) score = curated.has(name) ? 1 : 2;
+    else if (ll.includes(ql)) score = curated.has(name) ? 3 : 4;
+    else if (nl.includes(ql)) score = 5;
+    else continue;
+    out.push({ value: prefix + name, name, lbl: lbl && lbl !== name ? lbl : '', score });
+  }
+  out.sort((a, b) => a.score - b.score || a.name.length - b.name.length || a.name.localeCompare(b.name));
+  return out.slice(0, 30);
+}
+// 入力欄に候補を付ける。onPick は、候補を選んだあとに呼ぶ
+function attachSuggest(input, onPick) {
+  let box = null, items = [], on = -1;
+  const close = () => { if (box) { box.remove(); box = null; } on = -1; };
+  const pick = it => { input.value = it.value; close(); onPick && onPick(input.value); };
+  const render = () => {
+    items = suggestFor(input.value);
+    if (!items.length) { close(); return; }
+    if (!box) { box = document.createElement('div'); box.className = 'suggest'; document.body.appendChild(box); }
+    const r = input.getBoundingClientRect();
+    box.style.left = r.left + 'px'; box.style.top = (r.bottom + 2) + 'px'; box.style.width = Math.max(r.width, 260) + 'px';
+    box.innerHTML = '';
+    items.forEach((it, i) => {
+      const d = document.createElement('div'); if (i === on) d.className = 'on';
+      const b = document.createElement('b'); b.textContent = it.value;
+      const sp = document.createElement('span'); sp.textContent = it.lbl;
+      d.append(b, sp);
+      d.onmousedown = e => { e.preventDefault(); pick(it); };
+      box.appendChild(d);
+    });
+    const cur = box.children[on]; if (cur) cur.scrollIntoView({ block: 'nearest' });
+  };
+  input.setAttribute('autocomplete', 'off');
+  input.addEventListener('input', () => { on = -1; render(); });
+  input.addEventListener('focus', () => { on = -1; render(); });
+  input.addEventListener('blur', () => setTimeout(close, 100));
+  input.addEventListener('keydown', e => {
+    if (!box) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); on = Math.min(items.length - 1, on + 1); render(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); on = Math.max(0, on - 1); render(); }
+    else if ((e.key === 'Enter' || e.key === 'Tab') && on >= 0) { e.preventDefault(); e.stopPropagation(); pick(items[on]); }
+    else if (e.key === 'Escape') { e.preventDefault(); close(); }
+  }, true);
+}
+
+// ---------------------------------------------------------------- 選択肢
+const range =(a, b) => Array.from({length: b.charCodeAt(0) - a.charCodeAt(0) + 1}, (_, i) => String.fromCharCode(a.charCodeAt(0) + i));
+const CATS = [
+  ['文字（英字・数字・記号）', [...range('A','Z'), ...'1234567890'.split(''), 'MINS','EQL','YEN','LBRC','RBRC','SCLN','QUOT','BSLS','COMM','DOT','SLSH','RO','SPC']],
+  ['ナビゲーション（Enter・矢印など）', ['ENT','ESC','BSPC','TAB','DEL','INS','HOME','END','PGUP','PGDN','UP','DOWN','LEFT','RGHT','CAPS','PSCR','SCRL','PAUS','APP']],
+  ['修飾キー（Ctrl・Shift・Alt・Win）', ['LCTL','LSFT','LALT','LGUI','RCTL','RSFT','RALT','RGUI']],
+  ['日本語入力（変換・かな・英数 など）', ['ZENKAKU','MUHENKAN','HENKAN','KANA',
+    'LNG1', 'LNG2',
+    ['Win+SPC','入力方法・言語の切り替え'], ['Alt+ZENKAKU','日本語入力のオン/オフ（Alt + 半/全）']]],
+  ['ファンクションキー（F1〜F24）', Array.from({length: 24}, (_, i) => 'F' + (i + 1))],
+  ['編集（コピー・貼り付けなど）', [
+    ['Ctrl+Z','元に戻す'], ['Ctrl+Y','やり直し'], ['Ctrl+S','保存'], ['Ctrl+C','コピー'], ['Ctrl+V','貼り付け'],
+    ['Ctrl+X','切り取り'], ['Ctrl+A','すべて選択'], ['Ctrl+F','検索'], ['Ctrl+H','置換'], ['Ctrl+P','印刷'],
+    ['Ctrl+SCLN','拡大 (Ctrl + ;)'], ['Ctrl+MINS','縮小'], ['Ctrl+0','拡大率を元に戻す'],
+  ]],
+  ['Windows（ウィンドウ・画面の操作）', [
+    ['Alt+F4','ウィンドウを閉じる'], ['Alt+Tab','ウィンドウ切り替え'], ['Win+TAB','タスクビュー'],
+    ['Win+D','デスクトップ表示'], ['Win+M','すべて最小化'], ['Win+UP','最大化'], ['Win+DOWN','元のサイズ / 最小化'],
+    ['Win+LEFT','画面の左半分へ'], ['Win+RGHT','画面の右半分へ'],
+    ['Win+Ctrl+D','新しい仮想デスクトップ'], ['Win+Ctrl+LEFT','前の仮想デスクトップ'], ['Win+Ctrl+RGHT','次の仮想デスクトップ'],
+    ['Win+E','エクスプローラー'], ['Win+I','設定'], ['Win+A','クイック設定'], ['Win+N','通知'],
+    ['Win+Shift+S','画面の切り取り'], ['Win+PSCR','画面を保存（スクリーンショット）'], ['Win+V','クリップボード履歴'],
+    ['Win+DOT','絵文字・記号'], ['Win+R','ファイル名を指定して実行'], ['Ctrl+Shift+ESC','タスクマネージャー'],
+    ['Win+L','PC をロック'], ['SLEP','スリープ'],
+  ]],
+  ['ブラウザ（タブ・戻る・進む）', [
+    ['Ctrl+T','新しいタブ'], ['Ctrl+W','タブを閉じる'], ['Ctrl+Shift+T','閉じたタブを開き直す'],
+    ['Ctrl+TAB','次のタブ'], ['Ctrl+Shift+TAB','前のタブ'], ['Alt+LEFT','戻る'], ['Alt+RGHT','進む'],
+    ['F5','再読み込み'], ['Ctrl+L','アドレスバーへ'], ['Ctrl+D','ブックマークに追加'], ['Ctrl+Shift+N','シークレット / InPrivate ウィンドウ'],
+  ]],
+  ['自分で組み合わせる（Ctrl + ○ など）', 'combo'],
+  ['メディア操作（再生・音量・画面の明るさ）', ['MPLY','MSTP','MPRV','MNXT','VOLU','VOLD','MUTE','BRIU','BRID']],
+  ['アプリを開く（メール・電卓など）', ['WHOM','MAIL','CALC','MYCM','WFAV','MSEL','WSCH','WBAK','WFWD','WREF','CPNL']],
+  ['マウス操作（クリック・ホイール・カーソル）', ['MS_BTN1','MS_BTN2','MS_BTN3','DBLCLK_L','DBLCLK_R','MS_BTN4','MS_BTN5',
+    'MS_WH_UP','MS_WH_DOWN','MS_WH_LEFT','MS_WH_RIGHT','MS_UP','MS_DOWN','MS_LEFT','MS_RIGHT']],
+  ['マクロ', 'macros'],
+  ['プロファイルの切り替え', ['PROF_1','PROF_2','PROF_3','PROF_4','PROF_NEXT']],
+  ['Fn レイヤー・ライト・無線接続', ['FN','BRI_UP','BRI_DN','FX_NEXT','FX_PREV','CLR_NEXT','SPD_UP','SPD_DN','DIR_TOG','LNK_BT1','LNK_BT2','LNK_BT3','RF_PAIR','RF_DIAG','BOOT_HOLD','MACRO_TG']],
+];
+// 種類が入るまとまり（割り当ての上の段）
+const CAT_GROUP = {
+  '文字（英字・数字・記号）': 'キー',
+  'ナビゲーション（Enter・矢印など）': 'キー',
+  '修飾キー（Ctrl・Shift・Alt・Win）': 'キー',
+  '日本語入力（変換・かな・英数 など）': 'キー',
+  'ファンクションキー（F1〜F24）': 'キー',
+  '編集（コピー・貼り付けなど）': 'ショートカット',
+  'Windows（ウィンドウ・画面の操作）': 'ショートカット',
+  'ブラウザ（タブ・戻る・進む）': 'ショートカット',
+  '自分で組み合わせる（Ctrl + ○ など）': 'ショートカット',
+  'メディア操作（再生・音量・画面の明るさ）': 'その他',
+  'アプリを開く（メール・電卓など）': 'その他',
+  'マウス操作（クリック・ホイール・カーソル）': 'その他',
+  'マクロ': 'その他',
+  'プロファイルの切り替え': 'その他',
+  'Fn レイヤー・ライト・無線接続': 'その他',
+};
+const catItems = name => CATS.find(c => c[0] === name)[1];
+
+// ---------------------------------------------------------------- 状態
+let km = null, def = null, layer = 0, sel = null, cat = 0, dirty = false;
+const LAYER_TITLES = ['ベース層（ふだん・長押し）', 'Fn 層', 'タップ層'];
+const MAX_PROFILES = 4;
+let prof = 0;  // 編集中のプロファイル
+const L = () => km.profiles[prof].layers;
+const KNOB = () => km.profiles[prof].knob;
+const KNOB_PRESS = [0, 13];  // ノブを押す = 1 行目のいちばん右のキー
+const KNOB_DIR = ['左回し', '右回し'];
+const LAYER_HELP = [
+  'ふだん押したときのキー。タップ層を設定したキーでは、ここが「長押し」のときの動きになります。',
+  'Fn を押している間のキー。空いているキーは、ベース層と同じ動きです。',
+  '軽く叩いたときのキー。選べるのは、ベース層が Ctrl などの修飾キーか Fn のキーだけです（そのキーが長押しの動きになります）。',
+];
+// タップ層で選べるもの（普通のキーだけ）
+const TAP_CAT_NAMES = ['文字（英字・数字・記号）', 'ナビゲーション（Enter・矢印など）', '日本語入力（変換・かな・英数 など）', 'ファンクションキー（F1〜F24）'];
+const HOLDABLE = /^(KC_)?(LCTL|LSFT|LALT|LGUI|RCTL|RSFT|RALT|RGUI|CTRL|SHIFT|ALT|WIN|FN)$|^MO\(1\)$|^((L|R)?(CTRL|SHIFT|ALT|WIN)\+)*(L|R)?(CTRL|SHIFT|ALT|WIN)$/i;
+// タップ層を使えるのは、ベース層が長押し用のキー（修飾キーか Fn）のときだけ
+function canTap(r, k) { return HOLDABLE.test(String(L()[0].keys[r][k]).trim()); }
+// ベース層で Fn（長押しで Fn も含む）になっているキーか
+function isFnKey(r, k) { return /^(FN|MO\(1\))$/i.test(String(L()[0].keys[r][k]).trim()); }
+function tapConflict(r, k) { return short(L()[2].keys[r][k]) !== '___' && !canTap(r, k); }
+const isKnob = s => s && s[0] === 'knob';
+function catsForLayer() {
+  if (layer !== 2) return CATS;
+  // タップに修飾キーや同時押しは使えないので、修飾キーは出さず、日本語入力は同時押しのものを外す
+  return CATS.filter(c => TAP_CAT_NAMES.includes(c[0]))
+    .map(c => [c[0], c[1].filter(n => !(Array.isArray(n) ? n[0] : n).includes('+'))]);
+}
+const $ = id => document.getElementById(id);
+
+function setDirty(v) {
+  // 窓の ✕ で閉じるときに確認を出すかどうかを、アプリにも伝える（変わったときだけ）
+  if (v !== dirty) api('/api/dirty', { dirty: v }).catch(() => {});
+  dirty = v; $('dirty').style.display = v ? '' : 'none';
+}
+
+// ---------------------------------------------------------------- 元に戻す / やり直す
+let undoStack = [], redoStack = [], savedSnap = '';
+const snap = () => JSON.stringify(km);
+function markSaved() { savedSnap = snap(); setDirty(false); refreshSync(); }
+function refreshDirty() { setDirty(snap() !== savedSnap); refreshSync(); }
+
+// キーボードとの同期の状態（最後に書き込んだ / 読み込んだ設定と、エディタの内容をくらべる）
+let syncTimer = null;
+function refreshSync() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(async () => {
+    const c = $('sync');
+    let r;
+    try { r = await api('/api/sync-state', km); } catch (e) { return; }
+    const how = r.how === 'read' ? '読み込み' : '反映';
+    const map = {
+      same: ['反映済み', 'chip on', 'キーボードに反映済みです' + (r.at ? '（' + r.at + ' に' + how + '）' : '')],
+      changed: ['未反映の変更あり', 'chip warn', 'まだキーボードに反映していない変更があります'],
+      unknown: ['まだ反映していません', 'chip', 'この PC から、まだキーボードに反映していません。'
+        + '反映すると、ここに状態が出ます（キーボードの今の設定を見るには「キーボードから読み込む」）'],
+    };
+    const m = map[r.state] || map.unknown;
+    c.textContent = m[0]; c.className = m[1]; c.title = m[2];
+  }, 300);
+}
+
+// エディタの内容を、読み込んだ設定に置き換える（「元に戻す」で戻せる）
+function replaceAll(data) {
+  stopRecording();
+  remember();
+  km = data;
+  prof = 0; layer = 0; sel = null; mac = 0; cat = 0;
+  renderAll(); renderPicker(); refreshDirty();
+}
+function updateUndoButtons() {
+  $('btn-undo').disabled = !undoStack.length;
+  $('btn-redo').disabled = !redoStack.length;
+}
+function remember() {  // 変更する直前に呼ぶ
+  undoStack.push(snap());
+  if (undoStack.length > 200) undoStack.shift();
+  redoStack = [];
+  updateUndoButtons();
+}
+function restore(from, to, what) {
+  if (!from.length) return;
+  to.push(snap());
+  km = JSON.parse(from.pop());
+  refreshDirty(); updateUndoButtons(); renderAll();
+  status(what + 'しました。');
+}
+const undo = () => restore(undoStack, redoStack, '元に戻');
+const redo = () => restore(redoStack, undoStack, 'やり直');
+// メッセージは右下のボタンの上に出す。うまくいったときは少しして消える。クリックでも消せる
+let statusTimer = null;
+function status(msg, kind) {
+  const s = $('status'); s.textContent = msg; s.className = kind || '';
+  clearTimeout(statusTimer);
+  if (kind === 'ok') statusTimer = setTimeout(() => status(''), 8000);
+}
+function showLog(t) { const l = $('log'); l.textContent = t || ''; l.style.display = t ? 'block' : 'none'; l.scrollTop = l.scrollHeight; }
+
+function defaultAt(li, r, k) {
+  const D = def.profiles[0].layers[li];
+  return D ? D.keys[r][k] : '___';
+}
+function defaultKnob(li, d) { return li === 2 ? '___' : def.profiles[0].knob[li ? 'fn' : 'base'][d]; }
+// 選んでいるもの（キー [行, 個目] か、ノブ ['knob', 0|1]）の、今の層での値
+function getSel(s = sel) {
+  if (!s) return null;
+  if (isKnob(s)) return layer === 2 ? '___' : KNOB()[layer ? 'fn' : 'base'][s[1]];
+  return L()[layer].keys[s[0]][s[1]];
+}
+function setSel(v) {
+  if (isKnob(sel)) KNOB()[layer ? 'fn' : 'base'][sel[1]] = v;
+  else L()[layer].keys[sel[0]][sel[1]] = v;
+}
+function selName(s = sel) {
+  if (isKnob(s)) return 'ノブ ' + KNOB_DIR[s[1]];
+  if (s[0] === KNOB_PRESS[0] && s[1] === KNOB_PRESS[1]) return 'ノブを押す';
+  return PHYS[s[0]][s[1]][0];
+}
+
+// ---------------------------------------------------------------- プロファイル
+// ---------------------------------------------------------------- プロファイルの行き来の検証
+// ファームの動きどおりに調べる:
+//  - プロファイル番号は 0〜3 の 4 つ。作っていない番号の中身は、プロファイル 1 と同じ。
+//  - 「次のプロファイル」は、今の番号 + 1（3 の次は 0）。作っていない番号も通る。
+//  - Fn 層のキーは、そのプロファイルのベース層に Fn キーがあるときだけ使える。
+//    Fn 層の「ベースと同じ」はベース層のキーになるので、ベース層の切り替えキーは Fn 中も使える。
+//  - ノブ（左回し・右回し）も同じ。マクロの中の切り替えも数える。
+const FW_PROFILES = 4;
+function profTarget(v, from) {
+  const t = short(v);
+  const m = /^PROF_([1-4])$/.exec(t);
+  if (m) return +m[1] - 1;
+  if (t === 'PROF_NEXT') return (from + 1) % FW_PROFILES;
+  return null;
+}
+function analyzeProfiles() {
+  const n = km.profiles.length;
+  const content = i => km.profiles[i < n ? i : 0];   // 作っていない番号はプロファイル 1 の中身
+  const pname = i => i < n ? km.profiles[i].name : 'プロファイル ' + (i + 1) + '（未作成。中身は ' + km.profiles[0].name + ' と同じ）';
+  const macroTargets = (mi, from) => {
+    const m = km.macros && km.macros[mi];
+    if (!m) return [];
+    return m.steps.filter(st => st[0] === 'tap' || st[0] === 'press').map(st => profTarget(st[1], from)).filter(t => t !== null);
+  };
+  const edges = [];  // { from, to, via }
+  for (let i = 0; i < FW_PROFILES; i++) {
+    const P = content(i);
+    const base = P.layers[0].keys, fn = P.layers[1].keys;
+    const hasFn = base.some(row => row.some(v => /^(FN|MO\(1\))$/i.test(String(v).trim())));
+    const visit = (v, via) => {
+      const t = profTarget(v, i);
+      if (t !== null) edges.push({ from: i, to: t, via });
+      const mm = /^MACRO_(\d+)$/.exec(short(v));
+      if (mm) macroTargets(+mm[1] - 1, i).forEach(t2 => edges.push({ from: i, to: t2, via: via + '（マクロ「' + label(v).replace(/^▶ /, '') + '」の中）' }));
+    };
+    base.forEach((row, r) => row.forEach((v, k) => visit(v, PHYS[r][k][0])));
+    ['左回し', '右回し'].forEach((d, k) => visit(P.knob.base[k], 'ノブ ' + d));
+    if (hasFn) {
+      fn.forEach((row, r) => row.forEach((v, k) => { if (short(v) !== '___') visit(v, 'Fn + ' + PHYS[r][k][0]); }));
+      ['左回し', '右回し'].forEach((d, k) => { if (short(P.knob.fn[k]) !== '___') visit(P.knob.fn[k], 'Fn + ノブ ' + d); });
+    }
+  }
+  const reach = start => {
+    const seen = new Set([start]), q = [start];
+    while (q.length) { const a = q.shift(); edges.filter(e => e.from === a).forEach(e => { if (!seen.has(e.to)) { seen.add(e.to); q.push(e.to); } }); }
+    return seen;
+  };
+  // どの番号から始まっても（電源を入れたときは、最後に使った番号から始まる）、プロファイル 1 に戻れるか
+  const fromOne = reach(0);
+  const stuck = [], unreachable = [];
+  for (let i = 0; i < FW_PROFILES; i++) {
+    const r = reach(i);
+    if (fromOne.has(i) && !r.has(0)) stuck.push(i);
+  }
+  for (let i = 1; i < n; i++) if (!fromOne.has(i)) unreachable.push(i);
+  const phantom = [...fromOne].filter(i => i >= n);
+  return { n, edges, stuck, unreachable, phantom, pname };
+}
+
+function renderProfileCheck() {
+  const box = $('pcheck');
+  const a = analyzeProfiles();
+  if (a.n === 1 && !a.edges.length) { box.innerHTML = ''; box.className = 'pcheck'; return; }
+  const items = [];
+  a.stuck.forEach(i => items.push(['bad', a.pname(i) + ' に切り替えると、' + km.profiles[0].name + ' に戻れなくなります（行き止まり）。'
+    + 'このプロファイルの、Fn 層かベース層に「プロファイル」の切り替えキーを置いてください。'
+    + '（このままでも、非常口の Esc + F12 の 2 秒押しで ' + km.profiles[0].name + ' に戻れます）']));
+  a.unreachable.forEach(i => items.push(['warn', a.pname(i) + ' には、どのプロファイルからも切り替えられません。']));
+  a.phantom.forEach(i => items.push(['warn', '「次のプロファイル」で、' + a.pname(i) + ' を通ります。']));
+  const level = a.stuck.length ? 'bad' : (items.length ? 'warn' : 'ok');
+  const title = level === 'bad' ? '⚠ プロファイルの行き来: 行き止まりがあります'
+    : level === 'warn' ? '△ プロファイルの行き来: 注意があります'
+    : '✓ プロファイルの行き来: すべてのプロファイルを行き来できます';
+  box.className = 'pcheck ' + level;
+  const det = document.createElement('details');
+  if (level === 'bad') det.open = true;
+  const sum = document.createElement('summary'); sum.textContent = title; det.appendChild(sum);
+  const ul = document.createElement('ul');
+  items.forEach(([k, t]) => { const li = document.createElement('li'); li.textContent = t; if (k === 'bad') li.style.color = 'var(--danger)'; ul.appendChild(li); });
+  // どのキーでどこへ行けるか
+  const seen = new Set();
+  a.edges.filter(e => e.from < a.n || a.phantom.includes(e.from)).forEach(e => {
+    const key = e.from + '>' + e.to + '>' + e.via;
+    if (seen.has(key) || e.from === e.to) return; seen.add(key);
+    const li = document.createElement('li'); li.className = 'muted';
+    li.textContent = (e.from + 1) + ' → ' + (e.to + 1) + '：' + e.via;
+    ul.appendChild(li);
+  });
+  if (!a.edges.length) { const li = document.createElement('li'); li.className = 'muted'; li.textContent = '切り替えのキーが、どこにもありません。'; ul.appendChild(li); }
+  const esc = document.createElement('li'); esc.className = 'muted';
+  esc.textContent = '非常口: どのプロファイルでも、Esc と F12 を一緒に 2 秒押すと ' + km.profiles[0].name + ' に戻ります（割り当てに関係なく使えます）。';
+  ul.appendChild(esc);
+  det.appendChild(ul);
+  box.innerHTML = ''; box.appendChild(det);
+}
+
+function renderProfiles() {
+  const box = $('profiles'); box.innerHTML = '<span class="label">プロファイル</span>';
+  km.profiles.forEach((P, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === prof ? ' active' : '');
+    b.textContent = (i + 1) + '. ' + P.name;
+    b.title = 'キーボードでは「プロファイル ' + (i + 1) + '」キーで切り替えます';
+    b.onclick = () => { prof = i; sel = null; renderAll(); };
+    box.appendChild(b);
+  });
+  const add = document.createElement('button');
+  add.className = 'btn'; add.textContent = '＋ 追加';
+  add.title = '今のプロファイルをコピーして、新しいプロファイルを作ります';
+  add.disabled = km.profiles.length >= MAX_PROFILES;
+  add.onclick = () => {
+    remember();
+    const copy = JSON.parse(JSON.stringify(km.profiles[prof]));
+    copy.name = 'プロファイル ' + (km.profiles.length + 1);
+    km.profiles.push(copy); prof = km.profiles.length - 1; sel = null;
+    refreshDirty(); renderAll();
+    status('「' + copy.name + '」を作りました（' + km.profiles[0].name + ' などのコピー）。キーボードで切り替えるには、どこかのキーに「プロファイル」キーを割り当ててください。', 'ok');
+  };
+  const ren = document.createElement('button');
+  ren.className = 'btn'; ren.textContent = '名前を変える';
+  ren.onclick = () => {
+    const n = prompt('プロファイルの名前', km.profiles[prof].name);
+    if (n === null || !n.trim() || n.trim() === km.profiles[prof].name) return;
+    remember(); km.profiles[prof].name = n.trim(); refreshDirty(); renderAll();
+  };
+  const del = document.createElement('button');
+  del.className = 'btn warn'; del.textContent = '削除';
+  del.disabled = km.profiles.length <= 1;
+  del.onclick = () => {
+    if (!confirm('「' + km.profiles[prof].name + '」を削除しますか？（「元に戻す」で戻せます）')) return;
+    remember(); km.profiles.splice(prof, 1); prof = Math.max(0, prof - 1); sel = null;
+    refreshDirty(); renderAll();
+  };
+  box.append(add, ren, del);
+  renderProfileCheck();
+}
+
+function renderLayers() {
+  const box = $('layers'); box.innerHTML = '';
+  LAYER_TITLES.forEach((title, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === layer ? ' active' : '');
+    b.textContent = title;
+    b.onclick = () => { layer = i; sel = null; cat = 0; renderAll(); renderPicker(); };
+    box.appendChild(b);
+  });
+  $('legend').innerHTML = '<span></span>初期値から変えたキー　・　' + LAYER_HELP[layer];
+  renderTappingTerm();
+}
+
+// タップ層のときだけ: タップと長押しを見分ける時間（キーボード全体で 1 つ）
+function renderTappingTerm() {
+  const box = $('tt-row'); box.innerHTML = '';
+  if (layer !== 2) return;
+  if (typeof km.tapping_term !== 'number') km.tapping_term = 200;
+  const lab = document.createElement('label'); lab.textContent = '長押しと判定するまでの時間 ';
+  const r = document.createElement('input'); r.type = 'range'; r.min = 100; r.max = 1000; r.step = 10; r.value = km.tapping_term;
+  const v = document.createElement('b'); v.textContent = ' ' + km.tapping_term + ' ms';
+  r.oninput = () => { v.textContent = ' ' + r.value + ' ms'; };
+  r.onchange = () => { if (+r.value === km.tapping_term) return; remember(); km.tapping_term = +r.value; refreshDirty(); renderTappingTerm(); };
+  const note = document.createElement('div'); note.className = 'note';
+  note.textContent = 'この時間より長く押すと「長押し」になります（押している間にほかのキーを押したときも長押し）。'
+    + '短くすると長押しになりやすく、長くするとタップになりやすくなります。初期値は 200 ms。全プロファイル共通です。';
+  box.append(lab, r, v, note);
+}
+
+function renderKb() {
+  const U = 54, G = 4, kb = $('kb'); kb.innerHTML = '';
+  let maxX = 0;
+  PHYS.forEach((row, r) => {
+    let x = 0;
+    row.forEach(([phys, w, gap], k) => {
+      x += gap || 0;
+      const v = L()[layer].keys[r][k];
+      const el = document.createElement('div');
+      const changed = short(v) !== short(defaultAt(layer, r, k));
+      const bad = tapConflict(r, k);
+      const fnHeld = layer === 1 && isFnKey(r, k);  // Fn 層では、Fn を押しているキーそのものは使えない
+      const off = (layer === 2 && !canTap(r, k) && !bad) || fnHeld;
+      el.className = 'key' + (changed ? ' changed' : '') + (bad ? ' bad' : '') + (off ? ' off' : '') + (sel && !isKnob(sel) && sel[0] === r && sel[1] === k ? ' sel' : '');
+      el.style.left = (x * U) + 'px'; el.style.top = (r * U + (r ? 10 : 0)) + 'px';
+      el.style.width = (w * U - G) + 'px'; el.style.height = (U - G) + 'px';
+      const lbl = label(v);
+      const trans = short(v) === '___';
+      const tap = layer === 0 ? L()[2].keys[r][k] : '___';
+      el.innerHTML = '<div class="phys"></div><div class="val"></div><div class="tapv"></div>';
+      el.querySelector('.phys').textContent = phys;
+      const ic = trans || fnHeld ? '' : icon(v);
+      if (ic) el.querySelector('.val').innerHTML = ic;
+      else el.querySelector('.val').textContent = fnHeld ? 'Fn' : (trans ? '' : lbl);
+      if (short(tap) !== '___') el.querySelector('.tapv').textContent = 'タップ: ' + label(tap);
+      el.title = fnHeld ? phys + ' → Fn（押している間）。Fn 層では割り当てられません'
+        : phys + ' → ' + (trans ? (layer === 2 ? 'タップなし' : 'ベースと同じ') : (lbl + '  [' + v + ']'))
+          + (short(tap) !== '___' ? '  ／ タップ: ' + label(tap) : '');
+      el.onclick = () => {
+        if (fnHeld) { status('「' + phys + '」は、ベース層で Fn にしています。Fn 層では、このキーを押したまま使うので、割り当てられません。', 'err'); return; }
+        if (off) { status('「' + phys + '」はタップを使えません。ベース層で Ctrl などの修飾キーか Fn にすると、タップ層で選べるようになります。', 'err'); return; }
+        sel = [r, k]; status(''); renderAll();
+      };
+      kb.appendChild(el);
+      x += w; maxX = Math.max(maxX, x);
+    });
+  });
+  kb.style.width = (maxX * U) + 'px'; kb.style.height = (6 * U + 10) + 'px';
+  renderKnob();
+}
+
+// ノブ（右上のダイヤル）: 左回し・押す・右回し。タップ層では使わない
+function renderKnob() {
+  const box = $('knob'); box.innerHTML = '<span class="knob-title">ノブ</span>';
+  const items = [['knob', 0], KNOB_PRESS, ['knob', 1]];
+  items.forEach(s => {
+    const el = document.createElement('div');
+    const v = getSel(s);
+    const dflt = isKnob(s) ? defaultKnob(layer, s[1]) : defaultAt(layer, s[0], s[1]);
+    const off = layer === 2;
+    const isSel = sel && sel[0] === s[0] && sel[1] === s[1];
+    el.className = 'key' + (!off && short(v) !== short(dflt) ? ' changed' : '') + (off ? ' off' : '') + (isSel ? ' sel' : '');
+    el.innerHTML = '<div class="phys"></div><div class="val"></div>';
+    el.querySelector('.phys').textContent = selName(s);
+    const trans = short(v) === '___';
+    const ic = off || trans ? '' : icon(v);
+    if (ic) el.querySelector('.val').innerHTML = ic;
+    else el.querySelector('.val').textContent = off || trans ? '' : label(v);
+    el.title = selName(s) + (off ? '（タップ層では使いません）' : ' → ' + (trans ? 'ベースと同じ' : label(v)));
+    el.onclick = () => {
+      if (off) { status('ノブは、ベース層と Fn 層で設定します。', 'err'); return; }
+      sel = s; status(''); renderAll();
+    };
+    box.appendChild(el);
+  });
+}
+
+function renderSel() {
+  const info = $('selinfo');
+  ['btn-none','btn-trans','btn-reset'].forEach(id => $(id).disabled = !sel);
+  $('btn-trans').disabled = !sel || layer === 0;
+  $('btn-trans').textContent = layer === 2 ? 'タップを使わない' : 'ベースと同じ';
+  $('btn-none').style.display = layer === 2 ? 'none' : '';
+  if (!sel) { info.textContent = 'キーボードの絵か、下のノブから、変えたいものをクリックしてください。'; return; }
+  const v = getSel();
+  info.innerHTML = '';
+  const t = document.createElement('div');
+  t.innerHTML = '選んだもの: <b></b><br>今の割り当て: <b></b>';
+  t.querySelectorAll('b')[0].textContent = selName() + '（' + km.profiles[prof].name + '・' + LAYER_TITLES[layer] + '）';
+  t.querySelectorAll('b')[1].textContent = short(v) === '___' ? (layer === 2 ? 'タップなし' : 'ベースと同じ') : label(v) + '  (' + v + ')';
+  info.appendChild(t);
+  if (!isKnob(sel) && layer === 2 && !canTap(sel[0], sel[1])) {
+    const w = document.createElement('div'); w.className = 'bad';
+    w.textContent = 'タップが設定されていますが、ベース層が「' + label(L()[0].keys[sel[0]][sel[1]]) + '」なので使えません。'
+      + 'ベース層を Ctrl などの修飾キーか Fn にするか、「タップを使わない」を押してください。';
+    info.appendChild(w);
+  }
+}
+
+function assign(v) {
+  if (!sel) { status('先にキーボードの絵からキーを選んでください。', 'err'); return; }
+  if (/^(MO\(\d+\)|FN|LT\(.*\)|MT\(.*\))$/i.test(v) && (layer !== 0 || isKnob(sel))) {
+    status(isKnob(sel) ? 'ノブには、Fn や層の切り替えは割り当てられません。' : 'Fn キーは、ベース層にだけ置けます。', 'err'); return;
+  }
+  if (layer === 0 && v === '___') return;
+  if (!isKnob(sel) && layer === 1 && isFnKey(sel[0], sel[1])) { status('このキーはベース層で Fn なので、Fn 層では割り当てられません。', 'err'); return; }
+  if (!isKnob(sel) && layer === 2 && v !== '___' && !canTap(sel[0], sel[1])) { status('このキーはタップを使えません（ベース層を修飾キーか Fn にしてください）。', 'err'); return; }
+  if (getSel() === v) return;
+  remember();
+  setSel(v);
+  refreshDirty(); status(''); renderAll();
+  if (isKnob(sel)) return;
+  const base = L()[0].keys[sel[0]][sel[1]], tap = L()[2].keys[sel[0]][sel[1]];
+  if (short(tap) !== '___' && !HOLDABLE.test(String(base).trim()))
+    status('このキーのベース層は「' + label(base) + '」です。タップを使うには、ベース層を長押し用のキー（Ctrl などの修飾キーか Fn）にしてください。', 'err');
+}
+
+// 選択肢のボタン（アイコンがあれば上に出し、下に名前。コマンドなら説明と、小さくキー名）
+function choiceButton(v, desc) {
+  const b = document.createElement('button'); b.className = 'choice';
+  const ic = icon(v, 20);
+  if (ic) b.innerHTML = ic;
+  const name = document.createElement(ic ? 'small' : 'span');
+  name.textContent = desc || label(v);
+  b.appendChild(name);
+  if (desc) { const sm = document.createElement('small'); sm.textContent = label(v); b.appendChild(sm); }
+  b.title = v;
+  b.onclick = () => assign(v);
+  return b;
+}
+
+// 検索: 種類の中の選択肢（説明つき）と、キー名の候補から探す。タップ層では、タップに使えるものだけ
+function searchItems(q) {
+  const ql = q.toLowerCase(), out = [], seen = new Set();
+  const push = (v, desc, score) => { if (!seen.has(v)) { seen.add(v); out.push({ v, desc, score }); } };
+  const scoreOf = (v, text) => {
+    const vl = v.toLowerCase();
+    return vl === ql ? 0 : vl.startsWith(ql) ? 1 : text.includes(ql) ? 2 : -1;
+  };
+  for (const [, items] of catsForLayer()) {
+    if (!Array.isArray(items)) continue;
+    for (const it of items) {
+      const [v, desc] = Array.isArray(it) ? it : [it, null];
+      const sc = scoreOf(v, (v + ' ' + (desc || '') + ' ' + label(v)).toLowerCase());
+      if (sc >= 0) push(v, desc, sc);
+    }
+  }
+  if (layer !== 2) {
+    (km.macros || []).forEach((m, i) => { if (m.name.toLowerCase().includes(ql) || 'macro'.startsWith(ql)) push('MACRO_' + (i + 1), '▶ ' + m.name, 2); });
+    suggestFor(q).forEach(it => push(it.value, null, 3 + it.score));
+  }
+  out.sort((a, b) => a.score - b.score);
+  return out.slice(0, 40);
+}
+function renderSearch(q) {
+  const p = $('picker'); p.innerHTML = '';
+  const found = searchItems(q);
+  // 「Ctrl+Alt+DEL」のような、一覧にない組み合わせも、そのまま割り当てられる（タップ層以外）
+  const literal = layer !== 2 && (q.includes('+') || !found.length) && !found.some(f => f.v.toLowerCase() === q.toLowerCase());
+  const head = document.createElement('div'); head.className = 'search-head';
+  head.textContent = found.length ? '見つかったもの（' + found.length + '）' : '見つかりませんでした。';
+  p.appendChild(head);
+  if (literal) {
+    const b = document.createElement('button'); b.className = 'btn primary'; b.style.marginBottom = '8px';
+    b.textContent = '「' + q + '」をそのまま割り当てる'; b.onclick = () => assign(q);
+    p.appendChild(b);
+  }
+  const grid = document.createElement('div'); grid.className = 'choices';
+  found.forEach(f => grid.appendChild(choiceButton(f.v, f.desc)));
+  p.appendChild(grid);
+  if (layer !== 2) {
+    const n = document.createElement('div'); n.className = 'note';
+    n.textContent = 'QMK と同じキー名も使えます（一覧は docs/keymap-guide.md）。名前がまちがっていると、保存のときに知らせます。';
+    p.appendChild(n);
+  }
+}
+$('find').addEventListener('input', () => renderPicker());
+$('find').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { $('find').value = ''; renderPicker(); return; }
+  if (e.key !== 'Enter') return;
+  const q = $('find').value.trim(); if (!q) return;
+  const found = searchItems(q);
+  // Enter: 名前がぴったり合うもの → 組み合わせ（+ を含む）はそのまま → いちばん上の候補
+  const exact = found.find(f => f.v.toLowerCase() === q.toLowerCase());
+  if (exact) assign(exact.v);
+  else if (q.includes('+') && layer !== 2) assign(q);
+  else if (found.length) assign(found[0].v);
+});
+
+// 種類の選び方: 上の段 = まとまり（キー / ショートカット / その他）、下の段 = その中の種類
+const shortCat = name => name.replace(/（.*?）/g, '');
+function renderCatB(list) {
+  const groups = [];
+  list.forEach(([name], i) => {
+    const g = CAT_GROUP[name] || 'キー';
+    let e = groups.find(x => x.g === g); if (!e) groups.push(e = { g, idx: [] });
+    e.idx.push(i);
+  });
+  const cur = groups.find(e => e.idx.includes(cat)) || groups[0];
+  const gb = $('cat-groups'); gb.innerHTML = '';
+  gb.hidden = groups.length < 2;  // タップ層は「キー」だけなので、上の段は出さない
+  groups.forEach(e => {
+    const b = document.createElement('button'); b.textContent = e.g;
+    if (e === cur) b.className = 'active';
+    b.onclick = () => { cat = e.idx[0]; $('find').value = ''; renderPicker(); };
+    gb.appendChild(b);
+  });
+  const ch = $('cat-chips'); ch.innerHTML = '';
+  cur.idx.forEach(i => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === cat ? ' active' : ''); b.textContent = shortCat(list[i][0]); b.title = list[i][0];
+    b.onclick = () => { cat = i; $('find').value = ''; renderPicker(); };
+    ch.appendChild(b);
+  });
+}
+
+function renderPicker() {
+  const list = catsForLayer();
+  if (cat >= list.length) cat = 0;
+  renderCatB(list);
+  const q = $('find').value.trim();
+  if (q) { renderSearch(q); return; }
+  const p = $('picker'); p.innerHTML = '';
+  const items = list[cat][1];
+  if (items === 'combo') {
+    p.innerHTML = '<div class="combo">' +
+      ['Ctrl','Shift','Alt','Win'].map(m => '<label><input type="checkbox" value="' + m + '"> ' + m + '</label>').join('') +
+      '</div><div class="combo">＋ <select id="combo-key"></select> <button class="btn primary" id="combo-ok">割り当てる</button></div>' +
+      '<div class="note">例: Ctrl と Shift にチェックを入れて「Esc」を選ぶと、Ctrl+Shift+Esc になります。</div>';
+    const keys = [...catItems('文字（英字・数字・記号）'), ...catItems('ナビゲーション（Enter・矢印など）'), ...catItems('ファンクションキー（F1〜F24）')];
+    const s = p.querySelector('#combo-key');
+    keys.forEach(n => { const o = document.createElement('option'); o.value = n; o.textContent = label(n) + (label(n) !== n ? '  (' + n + ')' : ''); s.appendChild(o); });
+    p.querySelector('#combo-ok').onclick = () => {
+      const mods = [...p.querySelectorAll('input:checked')].map(c => c.value);
+      if (!mods.length) { status('修飾キーを 1 つ以上選んでください。', 'err'); return; }
+      assign([...mods, s.value].join('+'));
+    };
+    return;
+  }
+  if (items === 'macros') {
+    if (!km.macros || !km.macros.length) {
+      p.innerHTML = '<div class="note">まだマクロがありません。「マクロ」の画面で作ってください。</div>';
+      return;
+    }
+    const grid = document.createElement('div'); grid.className = 'choices';
+    km.macros.forEach((m, i) => {
+      const b = document.createElement('button'); b.className = 'choice';
+      b.textContent = '▶ ' + m.name;
+      const sm = document.createElement('small'); sm.textContent = 'MACRO_' + (i + 1); b.appendChild(sm);
+      b.onclick = () => assign('MACRO_' + (i + 1));
+      grid.appendChild(b);
+    });
+    p.appendChild(grid);
+    return;
+  }
+  const grid = document.createElement('div'); grid.className = 'choices';
+  items.forEach(it => {
+    const [v, desc] = Array.isArray(it) ? it : [it, null];
+    grid.appendChild(choiceButton(v, desc));
+  });
+  p.appendChild(grid);
+}
+
+function renderAll() { if (prof >= km.profiles.length) prof = 0; renderProfiles(); renderLayers(); renderKb(); renderSel(); renderMacros(); renderLight(); }
+
+// ---------------------------------------------------------------- ライト
+// エディタで選んだ設定は、書き込むときにキーボードへ送られ、書き込み後に一度だけ反映される。
+// そのあと Fn + キーで変えた設定は、次に書き込むまで残る。
+const LIGHT_EFFECT_NAMES = [
+  '中心から広がる輪', '横に流れる波', '縦に流れる波', '常時点灯', '押したキーが光る', '雨',
+  '星屑（きらめき）', '走る光', '走る光（虹色）', '波紋', '押したキーから広がるしずく', '回転する光',
+  '虹の縦じま', 'ゲーミング（WASD と矢印だけ）', 'ゆらめき', '消灯',
+];
+const LIGHT_COLORS = [
+  ['赤', '#ff3030'], ['緑', '#20d050'], ['青', '#3060ff'], ['黄', '#ffd800'], ['マゼンタ', '#ff30ff'],
+  ['シアン', '#20e0ff'], ['白', '#ffffff'], ['虹色', 'linear-gradient(90deg,#f33,#fd0,#3d5,#3cf,#36f,#c3f)'],
+];
+const LIGHT_DEFAULT = { apply: false, effect: 10, brightness: 9, speed: 2, color: 7, direction: 0 };
+function lightEdit(fn) { remember(); fn(); refreshDirty(); renderLight(); }
+function renderLight() {
+  if (!km.lighting) km.lighting = { ...LIGHT_DEFAULT };
+  const lt = km.lighting, box = $('light');
+  box.innerHTML = '';
+  const top = document.createElement('label');
+  top.style.display = 'block'; top.style.marginBottom = '10px';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!lt.apply;
+  cb.onchange = () => lightEdit(() => { lt.apply = cb.checked; });
+  top.append(cb, ' キーボードに反映するときに、このライトの設定もいっしょに反映する');
+  box.appendChild(top);
+
+  const grid = document.createElement('div');
+  grid.className = 'light-grid' + (lt.apply ? '' : ' light-off');
+  const row = (name, el) => { const l = document.createElement('label'); l.textContent = name; grid.append(l, el); };
+
+  const eff = document.createElement('select');
+  LIGHT_EFFECT_NAMES.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = n; eff.appendChild(o); });
+  eff.value = lt.effect;
+  eff.onchange = () => lightEdit(() => { lt.effect = +eff.value; });
+  row('光り方', eff);
+
+  const slider = (key, max, fmt) => {
+    const w = document.createElement('span');
+    const r = document.createElement('input'); r.type = 'range'; r.min = 0; r.max = max; r.value = lt[key];
+    const v = document.createElement('span'); v.className = 'val'; v.textContent = fmt(lt[key]);
+    r.oninput = () => { v.textContent = fmt(+r.value); };
+    r.onchange = () => lightEdit(() => { lt[key] = +r.value; });
+    w.append(r, v); return w;
+  };
+  row('明るさ', slider('brightness', 9, x => (x + 1) + ' / 10'));
+  row('速さ', slider('speed', 4, x => (x + 1) + ' / 5'));
+
+  const sw = document.createElement('div'); sw.className = 'swatches';
+  LIGHT_COLORS.forEach(([n, c], i) => {
+    const b = document.createElement('button'); b.className = 'swatch' + (i === lt.color ? ' on' : '');
+    b.style.background = c; b.title = n;
+    b.onclick = () => lightEdit(() => { lt.color = i; });
+    sw.appendChild(b);
+  });
+  const cn = document.createElement('span'); cn.className = 'val'; cn.textContent = LIGHT_COLORS[lt.color][0];
+  const cw = document.createElement('span'); cw.style.display = 'flex'; cw.style.alignItems = 'center'; cw.append(sw, cn);
+  row('色', cw);
+
+  const dir = document.createElement('select');
+  [['0', '正'], ['1', '逆']].forEach(([v, t]) => { const o = document.createElement('option'); o.value = v; o.textContent = t; dir.appendChild(o); });
+  dir.value = String(lt.direction);
+  dir.onchange = () => lightEdit(() => { lt.direction = +dir.value; });
+  row('流れる向き', dir);
+  box.appendChild(grid);
+
+  const note = document.createElement('div'); note.className = 'note';
+  note.textContent = lt.apply
+    ? '反映したあと、キーボードはこのライトの設定で動きます。そのあと Fn + キーで変えた設定は、次に反映するまで残ります。'
+    : 'チェックを外しているときは、反映しても、キーボードの今のライトの設定はそのままです。';
+  box.appendChild(note);
+}
+
+// ---------------------------------------------------------------- マクロ
+const MACRO_MAX = 16;
+const MODE_TITLES = { once: '1 回だけ', hold: '押している間くり返す', toggle: 'もう一度押すまでくり返す' };
+const STEP_TITLES = { tap: 'キーを叩く', press: 'キーを押す', release: 'キーを離す', delay: '待つ（ms）', text: '文字を打つ' };
+let mac = 0;            // 編集中のマクロ
+let recording = null;   // 記録中なら { last: 時刻 }
+
+// 記録: ブラウザのキーの名前（e.code）→ キー名
+const CODE_NAME = {
+  Enter: 'ENT', Escape: 'ESC', Backspace: 'BSPC', Tab: 'TAB', Space: 'SPC', Minus: 'MINS', Equal: 'EQL',
+  BracketLeft: 'LBRC', BracketRight: 'RBRC', Backslash: 'BSLS', IntlYen: 'YEN', IntlRo: 'RO',
+  Semicolon: 'SCLN', Quote: 'QUOT', Comma: 'COMM', Period: 'DOT', Slash: 'SLSH', Backquote: 'ZENKAKU',
+  Convert: 'HENKAN', NonConvert: 'MUHENKAN', KanaMode: 'KANA', CapsLock: 'CAPS',
+  ArrowUp: 'UP', ArrowDown: 'DOWN', ArrowLeft: 'LEFT', ArrowRight: 'RGHT',
+  Home: 'HOME', End: 'END', PageUp: 'PGUP', PageDown: 'PGDN', Insert: 'INS', Delete: 'DEL',
+  ControlLeft: 'LCTL', ControlRight: 'RCTL', ShiftLeft: 'LSFT', ShiftRight: 'RSFT',
+  AltLeft: 'LALT', AltRight: 'RALT', MetaLeft: 'LGUI', MetaRight: 'RGUI',
+  PrintScreen: 'PSCR', ScrollLock: 'SCRL', Pause: 'PAUS', ContextMenu: 'APP',
+};
+function codeToName(code) {
+  if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+  if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+  if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
+  return CODE_NAME[code] || null;
+}
+
+function macroEdit(fn) { remember(); fn(); refreshDirty(); renderAll(); renderPicker(); }
+
+function renderMacros() {
+  if (!km.macros) km.macros = [];
+  if (mac >= km.macros.length) mac = Math.max(0, km.macros.length - 1);
+  const list = $('macro-list'); list.innerHTML = '';
+  km.macros.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (i === mac ? ' active' : '');
+    b.textContent = (i + 1) + '. ' + m.name;
+    b.onclick = () => { stopRecording(); mac = i; renderMacros(); };
+    list.appendChild(b);
+  });
+  const add = document.createElement('button');
+  add.className = 'btn'; add.textContent = '＋ 新しいマクロ';
+  add.disabled = km.macros.length >= MACRO_MAX;
+  add.onclick = () => macroEdit(() => {
+    km.macros.push({ name: 'マクロ ' + (km.macros.length + 1), mode: 'once', steps: [] });
+    mac = km.macros.length - 1;
+  });
+  list.appendChild(add);
+
+  const ed = $('macro-edit'); ed.innerHTML = '';
+  const m = km.macros[mac];
+  if (!m) { ed.innerHTML = '<div class="note">「＋ 新しいマクロ」で作ります。</div>'; return; }
+
+  const row1 = document.createElement('div'); row1.className = 'row';
+  const name = document.createElement('input'); name.type = 'text'; name.value = m.name; name.style.width = '220px';
+  name.onchange = () => { const v = name.value.trim(); if (v && v !== m.name) macroEdit(() => { m.name = v; }); };
+  const mode = document.createElement('select');
+  Object.entries(MODE_TITLES).forEach(([k, t]) => { const o = document.createElement('option'); o.value = k; o.textContent = t; mode.appendChild(o); });
+  mode.value = m.mode;
+  mode.onchange = () => macroEdit(() => { m.mode = mode.value; });
+  const del = document.createElement('button'); del.className = 'btn warn'; del.textContent = 'このマクロを削除';
+  del.onclick = () => {
+    if (!confirm('「' + m.name + '」を削除しますか？（「元に戻す」で戻せます）\nこのマクロを割り当てたキーは「機能なし」になります。')) return;
+    macroEdit(() => {
+      // キーやノブに割り当てたマクロの番号を付け直す（消したものは NO、後ろは 1 つ前へ）
+      const gone = mac + 1;
+      const fix = v => {
+        const mm = /^MACRO_(\d+)$/i.exec(String(v).trim());
+        if (!mm) return v;
+        const n = +mm[1];
+        return n === gone ? 'NO' : (n > gone ? 'MACRO_' + (n - 1) : v);
+      };
+      km.profiles.forEach(P => {
+        P.layers.forEach(Ly => Ly.keys.forEach(row => row.forEach((v, k) => { row[k] = fix(v); })));
+        ['base', 'fn'].forEach(l => { P.knob[l] = P.knob[l].map(fix); });
+      });
+      km.macros.splice(mac, 1);
+    });
+  };
+  row1.append('名前', name, '繰り返し方', mode, del);
+  ed.appendChild(row1);
+
+  const steps = document.createElement('div'); steps.className = 'steps';
+  m.steps.forEach((st, i) => {
+    const r = document.createElement('div'); r.className = 'step';
+    const num = document.createElement('span'); num.className = 'num'; num.textContent = i + 1;
+    const type = document.createElement('select');
+    Object.entries(STEP_TITLES).forEach(([k, t]) => { const o = document.createElement('option'); o.value = k; o.textContent = t; type.appendChild(o); });
+    type.value = st[0];
+    type.onchange = () => macroEdit(() => { st[0] = type.value; if (st[0] === 'delay') st[1] = 100; });
+    const val = document.createElement('input'); val.type = 'text'; val.value = st[1];
+    val.placeholder = st[0] === 'delay' ? '100' : (st[0] === 'text' ? '打つ文字（英数字と記号）' : 'キー名（例: A, ENT, Ctrl+C）');
+    val.onchange = () => macroEdit(() => { st[1] = st[0] === 'delay' ? (parseInt(val.value, 10) || 0) : val.value; });
+    if (['tap', 'press', 'release'].includes(st[0])) attachSuggest(val, () => val.onchange());
+    const btns = document.createElement('span'); btns.className = 'btns';
+    const mk = (t, title, fn, dis) => { const b = document.createElement('button'); b.className = 'btn'; b.textContent = t; b.title = title; b.disabled = !!dis; b.onclick = () => macroEdit(fn); return b; };
+    btns.append(
+      mk('↑', '上へ', () => { [m.steps[i - 1], m.steps[i]] = [m.steps[i], m.steps[i - 1]]; }, i === 0),
+      mk('↓', '下へ', () => { [m.steps[i + 1], m.steps[i]] = [m.steps[i], m.steps[i + 1]]; }, i === m.steps.length - 1),
+      mk('✕', 'この手順を消す', () => { m.steps.splice(i, 1); }));
+    r.append(num, type, val, btns);
+    steps.appendChild(r);
+  });
+  if (!m.steps.length) {
+    const n = document.createElement('div'); n.className = 'note';
+    n.textContent = '手順がありません。「手順を追加」か「記録」で作ります。';
+    steps.appendChild(n);
+  }
+  ed.appendChild(steps);
+
+  const row2 = document.createElement('div'); row2.className = 'row';
+  const addStep = document.createElement('button'); addStep.className = 'btn'; addStep.textContent = '＋ 手順を追加';
+  addStep.onclick = () => macroEdit(() => { m.steps.push(['tap', 'A']); });
+  const rec = document.createElement('button');
+  rec.className = 'btn rec' + (recording ? ' on' : ''); rec.textContent = recording ? '■ 記録を止める' : '● 記録';
+  rec.title = '押したキーと、その間の待ち時間を、手順の最後に足していきます';
+  rec.onclick = () => { if (recording) stopRecording(); else startRecording(); renderMacros(); };
+  const clear = document.createElement('button'); clear.className = 'btn'; clear.textContent = '手順を全部消す';
+  clear.disabled = !m.steps.length;
+  clear.onclick = () => { if (confirm('手順を全部消しますか？')) macroEdit(() => { m.steps = []; }); };
+  row2.append(addStep, rec, clear);
+  ed.appendChild(row2);
+  const note = document.createElement('div'); note.className = 'note';
+  note.textContent = recording
+    ? '記録中です。キーを押すと、手順が増えていきます（Windows キーや Alt+F4 など、Windows が先に受け取るキーは記録できません）。'
+    : '「文字を打つ」は、パソコン側が日本語キーボードの設定のときの記号の位置で打ちます。日本語（ひらがな・漢字）は打てません。';
+  ed.appendChild(note);
+}
+
+function startRecording() {
+  if (!km.macros[mac]) return;
+  remember();
+  recording = { last: null };
+  status('記録中です。マクロにしたいキーを押してください。終わったら「記録を止める」を押します。');
+}
+function stopRecording() {
+  if (!recording) return;
+  recording = null;
+  refreshDirty();
+  status('記録を止めました。');
+}
+function recordKey(e, down) {
+  const name = codeToName(e.code);
+  e.preventDefault(); e.stopPropagation();
+  if (!name || e.repeat) return;
+  const m = km.macros[mac], now = performance.now();
+  if (recording.last !== null) {
+    const ms = Math.min(5000, Math.round((now - recording.last) / 10) * 10);
+    if (ms >= 30) m.steps.push(['delay', ms]);
+  }
+  recording.last = now;
+  m.steps.push([down ? 'press' : 'release', name]);
+  refreshDirty(); renderMacros();
+}
+document.addEventListener('keydown', e => { if (recording) recordKey(e, true); }, true);
+document.addEventListener('keyup', e => { if (recording) recordKey(e, false); }, true);
+
+// ---------------------------------------------------------------- 通信
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+  if (!r.ok) throw new Error(path + ': ' + r.status);
+  return r.json();
+}
+async function refreshDevice() {
+  try {
+    const d = await api('/api/device');
+    const c = $('dev');
+    c.textContent = d.connected ? 'キーボード: 接続中' : 'キーボード: 未接続';
+    c.className = 'chip' + (d.connected ? ' on' : '');
+    return d.connected;
+  } catch (e) { return false; }
+}
+function busy(on) { ['btn-save','btn-flash','btn-read','btn-export','btn-import'].forEach(id => $(id).disabled = on); }
+function showErrors(errs) {
+  status('まちがいがあります。直すところ:\n' + errs.join('\n'), 'err');
+  $('status').style.whiteSpace = 'pre-wrap';
+}
+
+$('btn-save').onclick = async () => {
+  busy(true); showLog('');
+  try {
+    const r = await api('/api/save', km);
+    if (!r.ok) showErrors(r.errors);
+    else { markSaved(); status('保存しました。キーボードに反映するには「キーボードに反映する」を押してください。', 'ok'); }
+  } catch (e) { status(String(e), 'err'); }
+  busy(false);
+};
+$('btn-flash').onclick = async () => {
+  const pc = analyzeProfiles();
+  if (pc.stuck.length && !confirm('プロファイルの行き来に行き止まりがあります。\n'
+      + pc.stuck.map(i => '・' + pc.pname(i) + ' から ' + km.profiles[0].name + ' に戻れません').join('\n')
+      + '\n\nそれでも反映しますか？\n（行き止まりに入っても、Esc と F12 を一緒に 2 秒押せば ' + km.profiles[0].name + ' に戻れます）')) return;
+  if (!confirm('キーボードに反映します。\n\n・ケーブルでつないでいますか？\n・反映中はケーブルを抜かないでください。\n\n続けますか？')) return;
+  busy(true); showLog(''); status('反映中です。ケーブルを抜かないでください…');
+  try {
+    const r = await api('/api/flash', km);
+    if (r.errors) showErrors(r.errors);
+    else {
+      markSaved();
+      showLog(r.log);
+      status(r.ok ? '反映しました。キーボードがつながり直したら、試してみてください。' : '反映に失敗しました。いちばん下の記録を見てください。', r.ok ? 'ok' : 'err');
+    }
+  } catch (e) { status(String(e), 'err'); }
+  busy(false); setTimeout(refreshDevice, 3000);
+};
+// エディタの設定を、すべて初期値に戻す（キーボードには、書き込むまで反映しない）
+// キーボードから読み込む（キーボードを正とする）
+$('btn-read').onclick = async () => {
+  if (!confirm('キーボードに保存してある設定を、エディタに読み込みます。\n\n'
+      + '・キーボードは、読み出しのあいだ一度つながり直します（10 秒ほど）。ケーブルでつないでください。\n'
+      + '・エディタの今の内容は置き換わります（「元に戻す」で戻せます）。\n\n続けますか？')) return;
+  busy(true); showLog(''); status('キーボードから読み込んでいます。ケーブルを抜かないでください…');
+  try {
+    const r = await api('/api/read-keyboard', {});
+    if (r.ok) {
+      replaceAll(r.data);
+      const s2 = await api('/api/save', km);  // キーボードの内容を、この PC の保存にもする
+      if (s2.ok) markSaved();
+      status('キーボードから読み込みました（' + (r.written_at || '日時不明') + ' に反映された設定）。', 'ok');
+    } else if (r.reason === 'noconfig') {
+      status('このキーボードには、設定ファイルが入っていません（設定ファイルを入れられるようになる前の版で反映したため）。'
+        + '一度このエディタから反映すると、次からは読み込めるようになります。', 'err');
+    } else {
+      showLog(r.log || '');
+      status('キーボードから読み込めませんでした。ケーブルでつながっているか確かめて、もう一度試してください。', 'err');
+    }
+  } catch (e) { status(String(e), 'err'); }
+  busy(false); setTimeout(refreshDevice, 3000);
+};
+
+// ファイルに書き出す
+$('btn-export').onclick = async () => {
+  try {
+    const name = 'F75J の配置 ' + new Date().toISOString().slice(0, 10) + '.json';
+    const r = await api('/api/export', { data: km, name });
+    if (r.fallback) {  // ブラウザで開いているとき
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([r.text], { type: 'application/json' }));
+      a.download = name; a.click(); URL.revokeObjectURL(a.href);
+      status('ファイルに書き出しました。', 'ok');
+    } else if (r.ok) status('ファイルに書き出しました: ' + r.path, 'ok');
+    else if (!r.cancelled) status('書き出せませんでした。', 'err');
+  } catch (e) { status(String(e), 'err'); }
+};
+
+// ファイルから読み込む（設定ファイルを正とする。キーボードには、書き込むまで反映しない）
+async function importDone(r) {
+  if (r.cancelled) return;
+  if (!r.ok) { showErrors(r.errors || ['読み込めませんでした']); return; }
+  replaceAll(r.data);
+  status('ファイルを読み込みました' + (r.path ? '（' + r.path + '）' : '') + '。キーボードに反映するには「キーボードに反映する」を押してください。', 'ok');
+}
+$('btn-import').onclick = async () => {
+  if (dirty && !confirm('保存していない変更があります。ファイルの内容で置き換えますか？（「元に戻す」で戻せます）')) return;
+  try {
+    const r = await api('/api/import', {});
+    if (!r.fallback) { await importDone(r); return; }
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      await importDone(await api('/api/import-text', { text: await f.text() }));
+    };
+    inp.click();
+  } catch (e) { status(String(e), 'err'); }
+};
+
+$('btn-factory').onclick = () => {
+  if (!confirm('キー配置・プロファイル・ノブ・マクロを、すべて最初の状態に戻します。\n\n'
+      + '・作ったプロファイルとマクロは消えます。\n'
+      + '・「元に戻す」で取り消せます。\n'
+      + '・キーボードには、「キーボードに反映する」を押すまで反映されません。\n\n続けますか？')) return;
+  stopRecording();
+  remember();
+  km = JSON.parse(JSON.stringify(def));
+  prof = 0; layer = 0; sel = null; mac = 0; cat = 0;
+  refreshDirty(); renderAll(); renderPicker();
+  status('すべて初期値に戻しました。キーボードに反映するには「キーボードに反映する」を押してください（取り消すなら「元に戻す」）。', 'ok');
+};
+
+$('status').onclick = () => status('');
+
+// 右上のメニュー: ボタンで開け閉め。項目を選ぶ、外をクリックする、Esc で閉じる
+function setMenu(open) { $('menu').hidden = !open; $('btn-menu').setAttribute('aria-expanded', open); }
+$('btn-menu').onclick = e => { e.stopPropagation(); setMenu($('menu').hidden); };
+$('menu').addEventListener('click', e => { if (e.target.closest('button')) setMenu(false); });
+document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) setMenu(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') setMenu(false); });
+
+// 画面の切り替え（キー配置 / マクロ / ライト）
+function showPage(name) {
+  stopRecording();  // マクロの記録中に画面を移ったら、記録を止める
+  for (const b of $('nav').children) b.classList.toggle('active', b.dataset.page === name);
+  for (const pg of document.querySelectorAll('.page')) pg.hidden = pg.id !== 'page-' + name;
+  window.scrollTo(0, 0);
+}
+for (const b of $('nav').children) b.onclick = () => showPage(b.dataset.page);
+$('btn-undo').onclick = undo;
+$('btn-redo').onclick = redo;
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (recording || (t && t.matches && t.matches('input, select, textarea')) || !(e.ctrlKey || e.metaKey)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+});
+$('btn-none').onclick = () => assign('NO');
+$('btn-trans').onclick = () => assign('___');
+$('btn-reset').onclick = () => { if (sel) assign(isKnob(sel) ? defaultKnob(layer, sel[1]) : defaultAt(layer, sel[0], sel[1])); };
+window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+(async () => {
+  try {
+    [km, def, ALL_NAMES] = await Promise.all([api('/api/keymap'), api('/api/default'), api('/api/names').catch(() => [])]);
+    ALL_NAMES.forEach(([n, v]) => NAME_VALUE.set(n, v));
+    savedSnap = snap(); updateUndoButtons(); refreshSync();
+    renderAll(); renderPicker(); refreshDevice();
+    // 画面が開いていることをアプリに知らせる（閉じると、アプリは 3 分ほどで自動で終わる）
+    const ping = () => fetch('/api/ping').catch(() => {});
+    ping();
+    setInterval(ping, 10000);
+    // 画面を閉じるときに知らせる（アプリは数秒後に終わる。再読み込みならすぐ ping が届くので終わらない）
+    window.addEventListener('pagehide', () => navigator.sendBeacon('/api/bye', ''));
+  } catch (e) { status('読み込めませんでした: ' + e, 'err'); }
+})();
+</script>
+</body>
+</html>

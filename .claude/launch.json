@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "keymap-editor",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["app/server.py", "--browser", "--no-browser"],
+      "env": { "F75J_PORT": "8077" },
+      "port": 8077,
+      "autoPort": false
+    },
+    {
+      "name": "build-files",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8090", "--bind", "127.0.0.1", "--directory", "build"],
+      "port": 8090
+    }
+  ]
+}

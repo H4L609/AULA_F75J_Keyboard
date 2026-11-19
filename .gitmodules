@@ -1,0 +1,3 @@
+[submodule "third_party/smk_aulaF75"]
+	path = third_party/smk_aulaF75
+	url = https://github.com/H4L609/smk_aulaF75.git

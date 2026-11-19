@@ -1,0 +1,15 @@
+# 作ったもの（インストーラーは GitHub の Releases で配る）
+build/
+dist/
+__pycache__/
+*.pyc
+
+# 出荷時の AULA のファーム（メーカーのものなので入れない）
+backup/
+
+# 他の人のツール（入手方法は README.md）
+sinowisp.exe
+sinowisp.tar.gz
+
+# この PC だけの設定
+.claude/settings.local.json
