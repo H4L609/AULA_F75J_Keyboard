@@ -63,7 +63,7 @@
 | `app/default-keymap.json` | 「初期値に戻す」の基準（出荷時に近い配置） |
 | `app/keycodes.json`, `app/firmware-base.hex` | ビルドで作られる同梱物 |
 | `app/icon.ico` | アプリのアイコン（`python tools/make_icon.py` で作り直す） |
-| `app/licenses/` | 同梱物のライセンス（sinowisp: MIT、SMK: GPL-2.0） |
+| `app/licenses/` | 同梱物のライセンス（SMK・sinowisp・Python・pywebview など。`python tools/collect_licenses.py` で集め直す） |
 | `installer/f75j-keymap.iss` | インストーラーの設定 |
 
 ## ライセンスの注意

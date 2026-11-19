@@ -1,0 +1,18 @@
+setuptools と pkg_resources の中に入っている部品（_vendor）
+
+exe には setuptools と pkg_resources がいっしょに入っている。その中に、次の部品が含まれる。
+いずれも、元の配布ではライセンスのファイルが付いていないため、名前・ライセンス・入手先を記す。
+
+| 部品 | ライセンス | 入手先 |
+|---|---|---|
+| appdirs | MIT（Copyright (c) 2005-2010 ActiveState Software Inc., Copyright (c) 2013 Eddy Petrișor） | https://github.com/ActiveState/appdirs |
+| pyparsing | MIT（Copyright (c) 2003-2022 Paul T. McGuire） | https://github.com/pyparsing/pyparsing |
+| packaging | Apache-2.0 または BSD-2-Clause（packaging-LICENSE*.txt を参照） | https://github.com/pypa/packaging |
+| more_itertools | MIT（Copyright (c) 2012 Erik Rose） | https://github.com/more-itertools/more-itertools |
+| jaraco.text / jaraco.functools / jaraco.context | MIT（Copyright Jason R. Coombs） | https://github.com/jaraco |
+| importlib_metadata / importlib_resources / zipp | Apache-2.0 | https://github.com/python/importlib_metadata ほか |
+| ordered_set | MIT（Copyright (c) 2018 Elia Robyn Speer） | https://github.com/rspeer/ordered-set |
+| tomli | MIT（Copyright (c) 2021 Taneli Hukkinen） | https://github.com/hukkin/tomli |
+| typing_extensions | PSF-2.0（typing_extensions-LICENSE.txt を参照） | https://github.com/python/typing_extensions |
+
+MIT ライセンスの文は、ほかの *-LICENSE.txt と同じ（著作権者の行だけが違う）。
