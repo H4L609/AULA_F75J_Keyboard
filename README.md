@@ -35,7 +35,7 @@ AULA F75J（日本語配列・3 モード）のすべてのキーを、自由に
 | `installer/` | インストーラー（Inno Setup 6）の設定 |
 | `firmware/` | ビルドした自作ファーム |
 | `keymap/` | 開発用のキー配置ファイル |
-| `third_party/smk_aulaF75` | ファームのソース（[SMK](https://github.com/Thaolia/smk_aulaF75) に F75J 対応を足したもの。サブモジュール） |
+| `third_party/smk_aulaF75` | ファームのソース（[SMK の AULA F75 版](https://github.com/Thaolia/smk_aulaF75) に F75J 対応を足したもの）。サブモジュールで、中身は [H4L609/smk_aula_f75j](https://github.com/H4L609/smk_aula_f75j/tree/aula-f75j) の `aula-f75j` ブランチ |
 
 ## 作る側の準備
 
