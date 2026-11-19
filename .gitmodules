@@ -1,3 +1,4 @@
 [submodule "third_party/smk_aulaF75"]
 	path = third_party/smk_aulaF75
-	url = https://github.com/H4L609/smk_aulaF75.git
+	url = https://github.com/H4L609/smk_aula_f75j.git
+	branch = aula-f75j
