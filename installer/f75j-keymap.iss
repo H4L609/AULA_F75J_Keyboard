@@ -2,7 +2,7 @@
 ; 作り方: tools\package.ps1 を実行する（先に exe を作ってから、これをコンパイルする）
 
 #define AppName "AULA F75J キー配置エディタ"
-#define AppVersion "0.13.1"
+#define AppVersion "0.14.0"
 #define AppExe "F75JKeymap.exe"
 
 [Setup]

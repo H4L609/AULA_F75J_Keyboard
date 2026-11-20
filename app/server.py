@@ -46,7 +46,7 @@ DEFAULT_KEYMAP = RES / 'default-keymap.json'
 NAMES = json.loads((RES / 'keycodes.json').read_text(encoding='utf-8'))
 HOST = '127.0.0.1'
 PORT = int(os.environ.get('F75J_PORT', '8075'))  # 開発中に別の番号で動かすとき用
-VERSION = '0.13.1'
+VERSION = '0.14.0'
 
 # Windows のコンソールの文字コード（日本語版は cp932）で、外部プログラムの出力を読む
 CONSOLE_ENC = 'cp932' if sys.platform == 'win32' else 'utf-8'
