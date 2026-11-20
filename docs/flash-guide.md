@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File tools\build-f75j.ps1
 
 - 列を 17 にした（`kbdef.h`、`user_matrix.c`）。c16 = P4.6（¥ キー）。c15 は P4.5（接続方式の切り替えスイッチ）なので、**出力にしない空の列**として扱う。
 - 日本語配列の配置にした（`layouts/default/layout.c`）。
-- ライトの効果に使う表を、F75J の出荷時ファームから取り出した 17 列ぶんに差し替えた（`aula_fx.c`、`aula_fx.h`、`aula_rgb.h`）。
+- ライトの効果に使う表（色の輪、グラデーション、波紋、流れる波、きらめき、呼吸、ゲーミング、キーの位置）は、`tools/gen_light_tables.py` が、このプロジェクトのキー配置と数式から作る（`aula_fx_tables.h`、`aula_rgb_wheel.h`）。出荷時のファームの表は使っていない（2026-11-20 に作り直した。以前は出荷時のファームから写していた）。表を変えたいときは、スクリプトを直して `python tools/gen_light_tables.py` を実行し、ファームをビルドし直す。
 - Bluetooth の名前を「AULA F75 JIS 3.0 / 5.0」に、USB の名前を「AULA F75 JIS SMK」にした。
 - 非常口として、`BOOT_HOLD` キー（Fn + Esc を 3 秒押す → ブートローダへ）を足した（`kb.c`、`indicators.c`）。
 - `meson.build` に `aula-f75j` を足した。
